@@ -130,6 +130,30 @@ int main(void)
     ASSERT(request_parse(a, ident, strlen(ident), 8192, 8 << 20, &r, &consumed, &err) == REQ_OK);
     ASSERT(req_body(r, &blen) != NULL && blen == 3);
 
+    arena_reset(a);
+
+    const char *q = "GET /s?a=1&b=2&a=3 HTTP/1.1\r\n\r\n";
+    ASSERT(request_parse(a, q, strlen(q), 8192, 8 << 20, &r, &consumed, &err) == REQ_OK);
+    ASSERT(strcmp(req_query_value(r, "a"), "1") == 0);
+    ASSERT(strcmp(req_query_value(r, "b"), "2") == 0);
+    ASSERT(req_query_value(r, "zzz") == NULL);
+    ASSERT(strcmp(req_form_value(r, "b"), "2") == 0);
+    ASSERT(req_path_value(r, "id") == NULL);
+    ASSERT(req_remote_addr(r) == NULL);
+
+    arena_reset(a);
+
+    const char *f = "POST /s?a=1 HTTP/1.1\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: 7\r\n\r\na=9&b=8";
+    ASSERT(request_parse(a, f, strlen(f), 8192, 8 << 20, &r, &consumed, &err) == REQ_OK);
+    ASSERT(strcmp(req_form_value(r, "a"), "9") == 0);
+    ASSERT(strcmp(req_form_value(r, "b"), "8") == 0);
+
+    arena_reset(a);
+
+    const char *plain = "POST /s?a=1 HTTP/1.1\r\nContent-Type: text/plain\r\nContent-Length: 3\r\n\r\na=9";
+    ASSERT(request_parse(a, plain, strlen(plain), 8192, 8 << 20, &r, &consumed, &err) == REQ_OK);
+    ASSERT(strcmp(req_form_value(r, "a"), "1") == 0);
+
     arena_free(a);
 
     if (failures == 0)

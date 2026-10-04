@@ -11,6 +11,7 @@ struct Request {
     Header *header;
     char *body;
     size_t body_len;
+    const char *remote_addr; /* set by conn, NULL until then */
 };
 
 static const char *find_crlf(const char *p, const char *end)
@@ -282,6 +283,72 @@ const char *req_body(Request *r, size_t *len)
     if (len)
         *len = r->body_len;
     return r->body;
+}
+
+static const char *scan_params(Arena *a, const char *p, size_t n, const char *name)
+{
+    size_t namelen = strlen(name);
+
+    while (n > 0) {
+        const char *amp = memchr(p, '&', n);
+        size_t pair = amp ? (size_t)(amp - p) : n;
+        const char *eq = memchr(p, '=', pair);
+        size_t klen = eq ? (size_t)(eq - p) : pair;
+        if (klen == namelen && memcmp(p, name, namelen) == 0) {
+            if (!eq)
+                return "";
+            return arena_strndup(a, eq + 1, pair - (klen + 1));
+        }
+        if (!amp)
+            break;
+        p = amp + 1;
+        n -= pair + 1;
+    }
+    return NULL;
+}
+
+const char *req_query_value(Request *r, const char *name)
+{
+    if (!r || !name)
+        return NULL;
+    return scan_params(r->arena, r->query, strlen(r->query), name);
+}
+
+const char *req_form_value(Request *r, const char *name)
+{
+    const char *ct, *v;
+
+    if (!r || !name)
+        return NULL;
+    /* body params win over query ones for form methods. */
+    if (r->body_len > 0 && (strcmp(r->method, "POST") == 0 ||
+                            strcmp(r->method, "PUT") == 0 ||
+                            strcmp(r->method, "PATCH") == 0)) {
+        ct = header_get(r->header, "Content-Type");
+        if (ct) {
+            size_t n = strcspn(ct, ";");
+            while (n > 0 && (ct[n - 1] == ' ' || ct[n - 1] == '\t'))
+                n--;
+            if (token_is(ct, n, "application/x-www-form-urlencoded")) {
+                v = scan_params(r->arena, r->body, r->body_len, name);
+                if (v)
+                    return v;
+            }
+        }
+    }
+    return req_query_value(r, name);
+}
+
+const char *req_path_value(Request *r, const char *name)
+{
+    (void)r;
+    (void)name;
+    return NULL; /* mux fills path params in step 5 */
+}
+
+const char *req_remote_addr(Request *r)
+{
+    return r ? r->remote_addr : NULL;
 }
 
 Arena *req_scratch(Request *r)
