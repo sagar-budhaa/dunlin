@@ -1,6 +1,7 @@
 #ifndef DUNLIN_H
 #define DUNLIN_H
 
+#include <stdarg.h>
 #include <stddef.h>
 
 /* Arena: request-scoped bump allocator. Every handler allocation comes
@@ -68,5 +69,59 @@ typedef enum {
 ParseResult request_parse(Arena *a, const char *buf, size_t len,
                           size_t max_header_bytes, size_t max_body_bytes,
                           Request **out, size_t *consumed, ParseError *err);
+
+/* ResponseWriter: vtable so middleware can substitute a forwarding
+   writer. status/written live on the struct for middleware inspection. */
+typedef struct ResponseWriter ResponseWriter;
+
+struct ResponseWriter {
+    void *ctx;
+    int (*write)(void *ctx, const char *data, size_t len); /* bytes or -1 */
+    void (*write_header)(void *ctx, int status);
+    Header *(*header)(void *ctx);
+    int status;
+    size_t written;
+};
+
+static inline int rw_write(ResponseWriter *w, const char *data, size_t len)
+{
+    int n = w->write(w->ctx, data, len);
+    if (n > 0)
+        w->written += (size_t)n;
+    return n;
+}
+
+static inline void rw_write_header(ResponseWriter *w, int status)
+{
+    w->status = status;
+    w->write_header(w->ctx, status);
+}
+
+static inline Header *rw_header(ResponseWriter *w)
+{
+    return w->header(w->ctx);
+}
+
+static inline int rw_write_string(ResponseWriter *w, const char *s)
+{
+    size_t n = 0;
+    while (s[n])
+        n++;
+    return rw_write(w, s, n);
+}
+
+int rw_printf(ResponseWriter *w, const char *fmt, ...);
+int rw_vprintf(ResponseWriter *w, const char *fmt, va_list ap);
+
+/* Handler: (fn, ctx) pair so middleware and closures compose. */
+typedef void (*HandlerFunc)(ResponseWriter *w, Request *r, void *ctx);
+
+typedef struct Handler {
+    HandlerFunc fn;
+    void *ctx;
+} Handler;
+
+Handler handler_func(HandlerFunc fn, void *ctx);
+void handler_serve(Handler h, ResponseWriter *w, Request *r);
 
 #endif
