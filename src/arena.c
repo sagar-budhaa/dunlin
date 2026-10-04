@@ -1,6 +1,7 @@
 #include <dunlin/dunlin.h>
 
 #include <stdlib.h>
+#include <string.h>
 
 #define BLOCK_SIZE 4096
 
@@ -61,4 +62,72 @@ void *arena_alloc(Arena *a, size_t n)
     void *p = b->data + b->used;
     b->used += aligned;
     return p;
+}
+
+void *arena_calloc(Arena *a, size_t n)
+{
+    void *p = arena_alloc(a, n);
+    if (p)
+        memset(p, 0, n);
+    return p;
+}
+
+char *arena_strdup(Arena *a, const char *s)
+{
+    size_t len;
+    char *p;
+
+    if (!s)
+        return NULL;
+    len = strlen(s) + 1;
+    p = arena_alloc(a, len);
+    if (!p)
+        return NULL;
+    memcpy(p, s, len);
+    return p;
+}
+
+char *arena_strndup(Arena *a, const char *s, size_t n)
+{
+    char *p;
+
+    if (!s)
+        return NULL;
+    p = arena_alloc(a, n + 1);
+    if (!p)
+        return NULL;
+    memcpy(p, s, n);
+    p[n] = '\0';
+    return p;
+}
+
+void arena_reset(Arena *a)
+{
+    Block *b, *next;
+
+    if (!a || !a->head)
+        return;
+    b = a->head->next;
+    a->head->next = NULL;
+    a->head->used = 0;
+    while (b) {
+        next = b->next;
+        free(b);
+        b = next;
+    }
+}
+
+void arena_free(Arena *a)
+{
+    Block *b, *next;
+
+    if (!a)
+        return;
+    b = a->head;
+    while (b) {
+        next = b->next;
+        free(b);
+        b = next;
+    }
+    free(a);
 }
