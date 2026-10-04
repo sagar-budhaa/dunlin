@@ -1,5 +1,7 @@
 #include <dunlin/dunlin.h>
 
+#include "internal.h"
+
 typedef struct Entry {
     char *key;
     char *val;
@@ -122,4 +124,14 @@ size_t header_values(const Header *h, const char *key, const char **out, size_t 
         }
     }
     return count;
+}
+
+void header_each(const Header *h, header_visit fn, void *ctx)
+{
+    Entry *e;
+
+    if (!h || !fn)
+        return;
+    for (e = h->head; e; e = e->next)
+        fn(e->key, e->val, ctx);
 }
