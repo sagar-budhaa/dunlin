@@ -12,7 +12,9 @@ if "%1"=="lib" (
     if errorlevel 1 exit /b 1
     gcc %CFLAGS% -c src/request.c -o src/request.o
     if errorlevel 1 exit /b 1
-    ar rcs libdunlin.a src/arena.o src/header.o src/request.o
+    gcc %CFLAGS% -c src/writer.c -o src/writer.o
+    if errorlevel 1 exit /b 1
+    ar rcs libdunlin.a src/arena.o src/header.o src/request.o src/writer.o
     if errorlevel 1 exit /b 1
     echo lib-ok
     exit /b 0
@@ -32,6 +34,10 @@ if "%1"=="test" (
     gcc %CFLAGS% tests/test_parse.c -L. -ldunlin -o tests/test_parse.exe
     if errorlevel 1 exit /b 1
     tests\test_parse.exe
+    if errorlevel 1 exit /b 1
+    gcc %CFLAGS% -Isrc tests/test_writer.c -L. -ldunlin -o tests/test_writer.exe
+    if errorlevel 1 exit /b 1
+    tests\test_writer.exe
     exit /b %errorlevel%
 )
 

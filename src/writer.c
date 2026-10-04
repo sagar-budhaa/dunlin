@@ -211,6 +211,7 @@ int writer_serialize(ResponseWriter *w, Arena *scratch,
         memcpy(p, c->data, c->len);
         p += c->len;
     }
+    buf[total] = '\0';
     *out = buf;
     *len = total;
     return 0;

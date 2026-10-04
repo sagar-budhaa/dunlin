@@ -84,18 +84,23 @@ struct ResponseWriter {
     size_t written;
 };
 
+static inline void rw_write_header(ResponseWriter *w, int status)
+{
+    if (w->status != 0)
+        return; /* first wins, like net/http */
+    w->status = status;
+    w->write_header(w->ctx, status);
+}
+
 static inline int rw_write(ResponseWriter *w, const char *data, size_t len)
 {
-    int n = w->write(w->ctx, data, len);
+    int n;
+    if (w->status == 0)
+        rw_write_header(w, 200);
+    n = w->write(w->ctx, data, len);
     if (n > 0)
         w->written += (size_t)n;
     return n;
-}
-
-static inline void rw_write_header(ResponseWriter *w, int status)
-{
-    w->status = status;
-    w->write_header(w->ctx, status);
 }
 
 static inline Header *rw_header(ResponseWriter *w)
