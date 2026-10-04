@@ -3,6 +3,7 @@
 
 #include <stdarg.h>
 #include <stddef.h>
+#include <stdio.h>
 
 /* Arena: request-scoped bump allocator. Every handler allocation comes
    from the request arena and is released in one shot. Handlers never
@@ -123,5 +124,48 @@ typedef struct Handler {
 
 Handler handler_func(HandlerFunc fn, void *ctx);
 void handler_serve(Handler h, ResponseWriter *w, Request *r);
+
+/* ServeMux: Go 1.22 pattern semantics. mux_handle is panic-free:
+   conflicts are logged, registration skipped. Mux lives for the
+   process lifetime (no free in v1). */
+typedef struct ServeMux ServeMux;
+
+ServeMux *mux_new(void);
+void mux_handle(ServeMux *m, const char *pattern, Handler h);
+void mux_handle_func(ServeMux *m, const char *pattern, HandlerFunc fn, void *ctx);
+Handler mux_handler(ServeMux *m);
+
+/* Middleware: Handler -> Handler. chain applies mws[0] outermost.
+   State allocates from the caller's arena (no GC). */
+typedef Handler (*Middleware)(Handler next);
+
+Handler chain(Handler h, const Middleware *mws, size_t n);
+Middleware logging_middleware(Arena *a, FILE *out);
+Middleware cors_middleware(Arena *a, const char *allow_origin);
+Middleware recover_middleware(Arena *a);
+
+/* Server: public fields, zero-initializable. timeouts in ms, 0 means
+   default (read 5s, write 10s, idle 120s). sizes 0 mean defaults
+   (headers 1MB, body 8MB). */
+typedef struct Server {
+    const char *addr;
+    Handler handler;
+    int read_timeout_ms;
+    int write_timeout_ms;
+    int idle_timeout_ms;
+    size_t max_header_bytes;
+    size_t max_body_bytes;
+    void *_impl;
+} Server;
+
+int server_listen_and_serve(Server *s);
+void server_shutdown(Server *s, int grace_ms);
+
+/* Package-level helpers over the default mux (setup only, not
+   thread-safe by contract). */
+void dunlin_handle(const char *pattern, Handler h);
+void dunlin_handle_func(const char *pattern, HandlerFunc fn, void *ctx);
+ServeMux *dunlin_default_mux(void);
+int dunlin_listen_and_serve(const char *addr);
 
 #endif
