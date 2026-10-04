@@ -18,7 +18,11 @@ if "%1"=="lib" (
     if errorlevel 1 exit /b 1
     gcc %CFLAGS% -c src/middleware.c -o src/middleware.o
     if errorlevel 1 exit /b 1
-    ar rcs libdunlin.a src/arena.o src/header.o src/request.o src/writer.o src/mux.o src/middleware.o
+    gcc %CFLAGS% -c src/conn.c -o src/conn.o
+    if errorlevel 1 exit /b 1
+    gcc %CFLAGS% -c src/server.c -o src/server.o
+    if errorlevel 1 exit /b 1
+    ar rcs libdunlin.a src/arena.o src/header.o src/request.o src/writer.o src/mux.o src/middleware.o src/conn.o src/server.o
     if errorlevel 1 exit /b 1
     echo lib-ok
     exit /b 0
@@ -53,10 +57,20 @@ if "%1"=="test" (
     exit /b %errorlevel%
 )
 
-if "%1"=="clean" (
-    del /q src\*.o libdunlin.a tests\*.exe 2>nul
+if "%1"=="examples" (
+    call "%~f0" lib
+    if errorlevel 1 exit /b 1
+    gcc %CFLAGS% examples/hello.c -L. -ldunlin -lws2_32 -o examples/hello.exe
+    if errorlevel 1 exit /b 1
+    echo examples-ok
     exit /b 0
 )
 
-echo usage: build.bat lib ^| test ^| clean
+if "%1"=="clean" (
+    del /q src\*.o libdunlin.a tests\*.exe 2>nul
+    del /q examples\*.exe 2>nul
+    exit /b 0
+)
+
+echo usage: build.bat lib ^| test ^| clean ^| examples
 exit /b 1

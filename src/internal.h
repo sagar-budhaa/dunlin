@@ -42,6 +42,7 @@ RecoverSlot *request_recover_slot(Request *r);
 #endif
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <windows.h>
 typedef SOCKET sock_t;
 #define SOCK_INVALID INVALID_SOCKET
 #else
