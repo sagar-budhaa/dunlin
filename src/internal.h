@@ -34,4 +34,33 @@ typedef struct RecoverSlot {
 void request_set_recover_slot(Request *r, RecoverSlot *slot);
 RecoverSlot *request_recover_slot(Request *r);
 
+/* conn.c: per-connection FSM. Thread-per-connection on Windows
+   (handlers may block); epoll single-loop on Linux (TODO). */
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <winsock2.h>
+#include <ws2tcpip.h>
+typedef SOCKET sock_t;
+#define SOCK_INVALID INVALID_SOCKET
+#else
+typedef int sock_t;
+#define SOCK_INVALID (-1)
+#endif
+
+typedef struct ConnCfg {
+    Handler handler;
+    size_t max_header_bytes;
+    size_t max_body_bytes;
+    int read_timeout_ms;
+    int write_timeout_ms;
+    int idle_timeout_ms;
+} ConnCfg;
+
+void conn_run(sock_t s, const char *remote, const ConnCfg *cfg);
+
+/* request.c: conn stamps the peer address per connection. */
+void request_set_remote_addr(Request *r, const char *addr);
+
 #endif

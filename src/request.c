@@ -396,6 +396,13 @@ RecoverSlot *request_recover_slot(Request *r)
     return r ? r->recover : NULL;
 }
 
+void request_set_remote_addr(Request *r, const char *addr)
+{
+    if (!r)
+        return;
+    r->remote_addr = addr ? arena_strdup(r->arena, addr) : NULL;
+}
+
 Arena *req_scratch(Request *r)
 {
     return r ? r->arena : NULL;
