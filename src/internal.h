@@ -13,4 +13,9 @@ ResponseWriter writer_new(Arena *a);
 int writer_serialize(ResponseWriter *w, Arena *scratch,
                      const char **out, size_t *len);
 
+/* request.c: mux stores captures; values point into the request path
+   (request arena), names into the mux pattern (mux arena). */
+void request_set_path_param(Request *r, const char *name,
+                            const char *val, size_t vlen);
+
 #endif

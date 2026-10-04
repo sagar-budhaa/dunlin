@@ -1,5 +1,7 @@
 #include <dunlin/dunlin.h>
 
+#include "internal.h"
+
 #include <string.h>
 
 struct Request {
@@ -12,6 +14,13 @@ struct Request {
     char *body;
     size_t body_len;
     const char *remote_addr; /* set by conn, NULL until then */
+    struct PathParam *params; /* set by mux, NULL until then */
+};
+
+struct PathParam {
+    const char *name;
+    char *value;
+    struct PathParam *next;
 };
 
 static const char *find_crlf(const char *p, const char *end)
@@ -339,11 +348,35 @@ const char *req_form_value(Request *r, const char *name)
     return req_query_value(r, name);
 }
 
+void request_set_path_param(Request *r, const char *name,
+                            const char *val, size_t vlen)
+{
+    struct PathParam *p;
+
+    if (!r || !name)
+        return;
+    p = arena_alloc(r->arena, sizeof(*p));
+    if (!p)
+        return;
+    p->name = name;
+    p->value = arena_strndup(r->arena, val, vlen);
+    if (!p->value)
+        return;
+    p->next = r->params;
+    r->params = p;
+}
+
 const char *req_path_value(Request *r, const char *name)
 {
-    (void)r;
-    (void)name;
-    return NULL; /* mux fills path params in step 5 */
+    struct PathParam *p;
+
+    if (!r || !name)
+        return NULL;
+    for (p = r->params; p; p = p->next) {
+        if (strcmp(p->name, name) == 0)
+            return p->value;
+    }
+    return NULL;
 }
 
 const char *req_remote_addr(Request *r)
