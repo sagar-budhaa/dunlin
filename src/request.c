@@ -39,6 +39,20 @@ static int is_http1(const char *p, size_t n)
            (n == 8 && memcmp(p, "HTTP/1.1", 8) == 0);
 }
 
+static int token_is(const char *tok, size_t n, const char *word)
+{
+    size_t i = 0;
+    while (i < n && word[i]) {
+        char c = tok[i];
+        if (c >= 'A' && c <= 'Z')
+            c += 'a' - 'A';
+        if (c != word[i])
+            return 0;
+        i++;
+    }
+    return i == n && word[i] == '\0';
+}
+
 ParseResult request_parse(Arena *a, const char *buf, size_t len,
                           size_t max_header_bytes, size_t max_body_bytes,
                           Request **out, size_t *consumed, ParseError *err)
@@ -49,9 +63,8 @@ ParseResult request_parse(Arena *a, const char *buf, size_t len,
     size_t method_len, target_len, ver_len;
     const char *qs;
     Request *r;
-
-    (void)max_header_bytes;
-    (void)max_body_bytes;
+    const char *body_start;
+    size_t content_len = 0;
 
     if (!a || !buf || !out || !consumed || !err)
         return REQ_ERROR;
@@ -86,8 +99,17 @@ ParseResult request_parse(Arena *a, const char *buf, size_t len,
     }
 
     term = find_hdr_end(line_end, end);
-    if (!term)
+    if (!term) {
+        if (len > max_header_bytes) {
+            *err = REQ_ERR_HEADERS_TOO_LARGE;
+            return REQ_ERROR;
+        }
         return REQ_INCOMPLETE;
+    }
+    if ((size_t)((term + 4) - buf) > max_header_bytes) {
+        *err = REQ_ERR_HEADERS_TOO_LARGE;
+        return REQ_ERROR;
+    }
 
     r = arena_calloc(a, sizeof(*r));
     if (!r) {
@@ -161,8 +183,63 @@ ParseResult request_parse(Arena *a, const char *buf, size_t len,
         cur = eol + 2;
     }
 
+    const char *te = header_get(r->header, "Transfer-Encoding");
+    if (te) {
+        /* v1 rejects chunked; identity is the only valid use. */
+        const char *p = te;
+        while (*p) {
+            while (*p == ' ' || *p == '\t' || *p == ',')
+                p++;
+            if (*p == '\0')
+                break;
+            const char *tok = p;
+            while (*p && *p != ' ' && *p != '\t' && *p != ',')
+                p++;
+            size_t n = (size_t)(p - tok);
+            if (!token_is(tok, n, "identity")) {
+                *err = REQ_ERR_TRANSFER_ENCODING;
+                return REQ_ERROR;
+            }
+        }
+    }
+
+    const char *cl = header_get(r->header, "Content-Length");
+    if (cl) {
+        if (*cl == '\0') {
+            *err = REQ_ERR_BAD_HEADER;
+            return REQ_ERROR;
+        }
+        for (const char *c = cl; *c; c++) {
+            if (*c < '0' || *c > '9') {
+                *err = REQ_ERR_BAD_HEADER;
+                return REQ_ERROR;
+            }
+        }
+        unsigned long n = 0;
+        for (const char *c = cl; *c; c++)
+            n = n * 10 + (unsigned long)(*c - '0');
+        if (n > max_body_bytes) {
+            *err = REQ_ERR_BODY_TOO_LARGE;
+            return REQ_ERROR;
+        }
+        content_len = (size_t)n;
+    }
+
+    body_start = term + 4;
+    if ((size_t)(end - body_start) < content_len)
+        return REQ_INCOMPLETE;
+    if (content_len > 0) {
+        r->body = arena_alloc(a, content_len);
+        if (!r->body) {
+            *err = REQ_ERR_NONE;
+            return REQ_ERROR;
+        }
+        memcpy(r->body, body_start, content_len);
+        r->body_len = content_len;
+    }
+
     *out = r;
-    *consumed = (size_t)((term + 4) - buf);
+    *consumed = (size_t)((body_start + content_len) - buf);
     return REQ_OK;
 }
 
@@ -196,6 +273,15 @@ const char *req_host(Request *r)
     if (!r)
         return NULL;
     return header_get(r->header, "Host");
+}
+
+const char *req_body(Request *r, size_t *len)
+{
+    if (!r)
+        return NULL;
+    if (len)
+        *len = r->body_len;
+    return r->body;
 }
 
 Arena *req_scratch(Request *r)
