@@ -17,4 +17,15 @@ char  *arena_strndup(Arena *a, const char *s, size_t n);
 void arena_reset(Arena *a); /* retains internal storage for reuse */
 void arena_free(Arena *a);
 
+/* Header: multi-value map like Go's map[string][]string.
+   Lookup is case-insensitive; original case is kept on the wire. */
+typedef struct Header Header;
+
+Header *header_new(Arena *a);
+int header_set(Header *h, const char *key, const char *value); /* replace, 0 ok / -1 OOM */
+int header_add(Header *h, const char *key, const char *value); /* append, 0 ok / -1 OOM */
+const char *header_get(const Header *h, const char *key); /* first value or NULL */
+size_t header_values(const Header *h, const char *key, const char **out, size_t n);
+void header_del(Header *h, const char *key);
+
 #endif
