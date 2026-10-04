@@ -141,8 +141,14 @@ void mux_handle_func(ServeMux *m, const char *pattern, HandlerFunc fn, void *ctx
 Handler mux_handler(ServeMux *m);
 
 /* Middleware: Handler -> Handler. chain applies mws[0] outermost.
-   State allocates from the caller's arena (no GC). */
-typedef Handler (*Middleware)(Handler next);
+   Same (fn, ctx) shape as Handler: factories capture config in ctx,
+   which allocates from the caller's arena (no GC). */
+typedef Handler (*MiddlewareFunc)(Handler next, void *ctx);
+
+typedef struct Middleware {
+    MiddlewareFunc fn;
+    void *ctx;
+} Middleware;
 
 Handler chain(Handler h, const Middleware *mws, size_t n);
 Middleware logging_middleware(Arena *a, FILE *out);

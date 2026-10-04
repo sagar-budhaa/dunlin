@@ -46,6 +46,10 @@ if "%1"=="test" (
     gcc %CFLAGS% -Isrc tests/test_mux.c -L. -ldunlin -o tests/test_mux.exe
     if errorlevel 1 exit /b 1
     tests\test_mux.exe
+    if errorlevel 1 exit /b 1
+    gcc %CFLAGS% -Isrc tests/test_middleware.c -L. -ldunlin -o tests/test_middleware.exe
+    if errorlevel 1 exit /b 1
+    tests\test_middleware.exe
     exit /b %errorlevel%
 )
 

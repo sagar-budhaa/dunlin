@@ -5,7 +5,7 @@ AR = ar
 LIB = libdunlin.a
 OBJS = src/arena.o src/header.o src/request.o src/writer.o src/mux.o src/middleware.o
 
-TESTS = tests/test_arena tests/test_header tests/test_parse tests/test_writer tests/test_mux
+TESTS = tests/test_arena tests/test_header tests/test_parse tests/test_writer tests/test_mux tests/test_middleware
 
 all: $(LIB)
 
@@ -30,12 +30,16 @@ tests/test_writer: tests/test_writer.c $(LIB)
 tests/test_mux: tests/test_mux.c $(LIB)
 	$(CC) $(CFLAGS) -Isrc $< -L. -ldunlin -o $@
 
+tests/test_middleware: tests/test_middleware.c $(LIB)
+	$(CC) $(CFLAGS) -Isrc $< -L. -ldunlin -o $@
+
 test: $(TESTS)
 	./tests/test_arena
 	./tests/test_header
 	./tests/test_parse
 	./tests/test_writer
 	./tests/test_mux
+	./tests/test_middleware
 
 examples:
 	@# TODO: hello/routing/middleware examples land with server.c
@@ -53,5 +57,6 @@ valgrind: $(TESTS)
 	valgrind --leak-check=full ./tests/test_parse
 	valgrind --leak-check=full ./tests/test_writer
 	valgrind --leak-check=full ./tests/test_mux
+	valgrind --leak-check=full ./tests/test_middleware
 
 .PHONY: all test examples clean format valgrind
