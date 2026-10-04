@@ -21,6 +21,14 @@ static void hello(ResponseWriter *w, Request *r, void *ctx)
     rw_write_string(w, "hi");
 }
 
+static void crasher(ResponseWriter *w, Request *r, void *ctx)
+{
+    (void)w;
+    (void)r;
+    (void)ctx;
+    raise(SIGSEGV);
+}
+
 int main(void)
 {
     Arena *a = arena_new();
@@ -95,7 +103,27 @@ int main(void)
                   "https://x.test") == 0);
     ASSERT(header_get(rw_header(&w4), "Vary") != NULL);
 
-    arena_free(scratch);
+    /* recover: healthy handler passes through untouched */
+    arena_reset(a);
+    Middleware rms[] = { recover_middleware(setup) };
+    Handler rh = chain(handler_func(hello, NULL), rms, 1);
+    r = NULL;
+    ASSERT(request_parse(a, raw, strlen(raw), 1 << 20, 8 << 20,
+                         &r, &consumed, &err) == REQ_OK);
+    ResponseWriter w5 = writer_new(a);
+    handler_serve(rh, &w5, r);
+    ASSERT(w5.status == 200);
+
+    /* recover: segfault becomes a 500, process survives */
+    arena_reset(a);
+    Handler rh2 = chain(handler_func(crasher, NULL), rms, 1);
+    r = NULL;
+    ASSERT(request_parse(a, raw, strlen(raw), 1 << 20, 8 << 20,
+                         &r, &consumed, &err) == REQ_OK);
+    ResponseWriter w6 = writer_new(a);
+    handler_serve(rh2, &w6, r);
+    ASSERT(w6.status == 500);
+
     arena_free(setup);
     arena_free(a);
 

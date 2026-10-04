@@ -1,5 +1,7 @@
 #include <dunlin/dunlin.h>
 
+#include "internal.h"
+
 #include <stddef.h>
 #include <string.h>
 #include <time.h>
@@ -129,5 +131,76 @@ Middleware cors_middleware(Arena *a, const char *allow_origin)
         return m;
     m.fn = cors_apply;
     m.ctx = cw;
+    return m;
+}
+
+typedef struct RecoverWrap {
+    Handler next;
+} RecoverWrap;
+
+static _Thread_local RecoverSlot *current_slot = NULL;
+
+static void crash_handler(int sig)
+{
+    RecoverSlot *slot = current_slot;
+    if (!slot || slot->failed) {
+        signal(sig, SIG_DFL);
+        raise(sig);
+        return;
+    }
+    slot->failed = 1;
+    longjmp(slot->jb, 1);
+}
+
+static void recover_serve(ResponseWriter *w, Request *r, void *ctx)
+{
+    RecoverWrap *wrap = ctx;
+    RecoverSlot local;
+    RecoverSlot *slot = request_recover_slot(r);
+    RecoverSlot *prev;
+
+    if (!slot)
+        slot = &local;
+    slot->failed = 0;
+    prev = current_slot;
+    current_slot = slot;
+    if (setjmp(slot->jb) == 0) {
+        handler_serve(wrap->next, w, r);
+    } else if (w->status == 0) {
+        /* handler died before sending anything; sent headers stay sent */
+        rw_write_header(w, 500);
+        rw_write_string(w, "Internal Server Error\n");
+    }
+    current_slot = prev;
+}
+
+static Handler recover_apply(Handler next, void *ctx)
+{
+    RecoverWrap *wrap = ctx;
+    Handler h;
+    wrap->next = next;
+    h.fn = recover_serve;
+    h.ctx = wrap;
+    return h;
+}
+
+Middleware recover_middleware(Arena *a)
+{
+    static int installed = 0;
+    Middleware m = { NULL, NULL };
+    RecoverWrap *wrap;
+
+    if (!installed) {
+        signal(SIGSEGV, crash_handler);
+        signal(SIGABRT, crash_handler);
+        installed = 1;
+    }
+    if (!a)
+        return m;
+    wrap = arena_alloc(a, sizeof(*wrap));
+    if (!wrap)
+        return m;
+    m.fn = recover_apply;
+    m.ctx = wrap;
     return m;
 }

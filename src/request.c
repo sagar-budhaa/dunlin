@@ -15,6 +15,7 @@ struct Request {
     size_t body_len;
     const char *remote_addr; /* set by conn, NULL until then */
     struct PathParam *params; /* set by mux, NULL until then */
+    RecoverSlot *recover; /* set by conn, NULL until then */
 };
 
 struct PathParam {
@@ -382,6 +383,17 @@ const char *req_path_value(Request *r, const char *name)
 const char *req_remote_addr(Request *r)
 {
     return r ? r->remote_addr : NULL;
+}
+
+void request_set_recover_slot(Request *r, RecoverSlot *slot)
+{
+    if (r)
+        r->recover = slot;
+}
+
+RecoverSlot *request_recover_slot(Request *r)
+{
+    return r ? r->recover : NULL;
 }
 
 Arena *req_scratch(Request *r)
