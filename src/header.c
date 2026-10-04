@@ -106,3 +106,20 @@ int header_set(Header *h, const char *key, const char *value)
     header_del(h, key);
     return header_add(h, key, value);
 }
+
+size_t header_values(const Header *h, const char *key, const char **out, size_t n)
+{
+    Entry *e;
+    size_t count = 0;
+
+    if (!h || !key)
+        return 0;
+    for (e = h->head; e; e = e->next) {
+        if (eq_ci(e->key, key)) {
+            if (out && count < n)
+                out[count] = e->val;
+            count++;
+        }
+    }
+    return count;
+}

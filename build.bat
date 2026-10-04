@@ -8,7 +8,9 @@ set CFLAGS=-std=c11 -Wall -Wextra -Werror -Wpedantic -Iinclude
 if "%1"=="lib" (
     gcc %CFLAGS% -c src/arena.c -o src/arena.o
     if errorlevel 1 exit /b 1
-    ar rcs libdunlin.a src/arena.o
+    gcc %CFLAGS% -c src/header.c -o src/header.o
+    if errorlevel 1 exit /b 1
+    ar rcs libdunlin.a src/arena.o src/header.o
     if errorlevel 1 exit /b 1
     echo lib-ok
     exit /b 0
@@ -20,6 +22,10 @@ if "%1"=="test" (
     gcc %CFLAGS% tests/test_arena.c -L. -ldunlin -o tests/test_arena.exe
     if errorlevel 1 exit /b 1
     tests\test_arena.exe
+    if errorlevel 1 exit /b 1
+    gcc %CFLAGS% tests/test_header.c -L. -ldunlin -o tests/test_header.exe
+    if errorlevel 1 exit /b 1
+    tests\test_header.exe
     exit /b %errorlevel%
 )
 
