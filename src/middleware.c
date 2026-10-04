@@ -1,6 +1,7 @@
 #include <dunlin/dunlin.h>
 
 #include <stddef.h>
+#include <string.h>
 #include <time.h>
 
 Handler handler_func(HandlerFunc fn, void *ctx)
@@ -72,5 +73,61 @@ Middleware logging_middleware(Arena *a, FILE *out)
     wrap->out = out;
     m.fn = logging_apply;
     m.ctx = wrap;
+    return m;
+}
+
+typedef struct CorsWrap {
+    Handler next;
+    char *origin;
+} CorsWrap;
+
+static void cors_serve(ResponseWriter *w, Request *r, void *ctx)
+{
+    CorsWrap *cw = ctx;
+    Header *h = rw_header(w);
+
+    header_set(h, "Access-Control-Allow-Origin", cw->origin);
+    if (strcmp(cw->origin, "*") != 0)
+        header_add(h, "Vary", "Origin");
+    if (strcmp(req_method(r), "OPTIONS") == 0 &&
+        header_get(req_header(r), "Origin") &&
+        header_get(req_header(r), "Access-Control-Request-Method")) {
+        const char *hdrs =
+            header_get(req_header(r), "Access-Control-Request-Headers");
+        header_set(h, "Access-Control-Allow-Methods",
+                   header_get(req_header(r), "Access-Control-Request-Method"));
+        if (hdrs)
+            header_set(h, "Access-Control-Allow-Headers", hdrs);
+        rw_write_header(w, 204);
+        return;
+    }
+    handler_serve(cw->next, w, r);
+}
+
+static Handler cors_apply(Handler next, void *ctx)
+{
+    CorsWrap *cw = ctx;
+    Handler h;
+    cw->next = next;
+    h.fn = cors_serve;
+    h.ctx = cw;
+    return h;
+}
+
+Middleware cors_middleware(Arena *a, const char *allow_origin)
+{
+    Middleware m = { NULL, NULL };
+    CorsWrap *cw;
+
+    if (!a || !allow_origin)
+        return m;
+    cw = arena_alloc(a, sizeof(*cw));
+    if (!cw)
+        return m;
+    cw->origin = arena_strdup(a, allow_origin);
+    if (!cw->origin)
+        return m;
+    m.fn = cors_apply;
+    m.ctx = cw;
     return m;
 }
