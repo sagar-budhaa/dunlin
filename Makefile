@@ -3,7 +3,7 @@ CFLAGS = -std=c11 -Wall -Wextra -Werror -Wpedantic -Iinclude
 AR = ar
 
 LIB = libdunlin.a
-OBJS = src/arena.o src/header.o src/request.o src/writer.o
+OBJS = src/arena.o src/header.o src/request.o src/writer.o src/mux.o src/middleware.o
 
 TESTS = tests/test_arena tests/test_header tests/test_parse tests/test_writer
 

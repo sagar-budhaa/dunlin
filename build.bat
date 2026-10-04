@@ -14,7 +14,11 @@ if "%1"=="lib" (
     if errorlevel 1 exit /b 1
     gcc %CFLAGS% -c src/writer.c -o src/writer.o
     if errorlevel 1 exit /b 1
-    ar rcs libdunlin.a src/arena.o src/header.o src/request.o src/writer.o
+    gcc %CFLAGS% -c src/mux.c -o src/mux.o
+    if errorlevel 1 exit /b 1
+    gcc %CFLAGS% -c src/middleware.c -o src/middleware.o
+    if errorlevel 1 exit /b 1
+    ar rcs libdunlin.a src/arena.o src/header.o src/request.o src/writer.o src/mux.o src/middleware.o
     if errorlevel 1 exit /b 1
     echo lib-ok
     exit /b 0
