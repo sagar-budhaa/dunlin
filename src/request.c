@@ -115,6 +115,52 @@ ParseResult request_parse(Arena *a, const char *buf, size_t len,
         return REQ_ERROR;
     }
 
+    const char *cur = line_end + 2;
+    while (cur < term) {
+        const char *eol = find_crlf(cur, term + 2);
+        const char *colon, *name_end, *val, *val_end;
+        char *k, *v;
+        if (!eol || eol > term)
+            eol = term;
+        if (eol == cur)
+            break;
+        if (*cur == ' ' || *cur == '\t') {
+            *err = REQ_ERR_BAD_HEADER;
+            return REQ_ERROR;
+        }
+        colon = memchr(cur, ':', (size_t)(eol - cur));
+        if (!colon) {
+            *err = REQ_ERR_BAD_HEADER;
+            return REQ_ERROR;
+        }
+        name_end = colon;
+        while (name_end > cur && (name_end[-1] == ' ' || name_end[-1] == '\t'))
+            name_end--;
+        if (name_end == cur) {
+            *err = REQ_ERR_BAD_HEADER;
+            return REQ_ERROR;
+        }
+        for (const char *c = cur; c < name_end; c++) {
+            if (*c == ' ' || *c == '\t') {
+                *err = REQ_ERR_BAD_HEADER;
+                return REQ_ERROR;
+            }
+        }
+        val = colon + 1;
+        while (val < eol && (*val == ' ' || *val == '\t'))
+            val++;
+        val_end = eol;
+        while (val_end > val && (val_end[-1] == ' ' || val_end[-1] == '\t'))
+            val_end--;
+        k = arena_strndup(a, cur, (size_t)(name_end - cur));
+        v = arena_strndup(a, val, (size_t)(val_end - val));
+        if (!k || !v || header_add(r->header, k, v) != 0) {
+            *err = REQ_ERR_NONE;
+            return REQ_ERROR;
+        }
+        cur = eol + 2;
+    }
+
     *out = r;
     *consumed = (size_t)((term + 4) - buf);
     return REQ_OK;
@@ -143,6 +189,13 @@ const char *req_proto(Request *r)
 Header *req_header(Request *r)
 {
     return r ? r->header : NULL;
+}
+
+const char *req_host(Request *r)
+{
+    if (!r)
+        return NULL;
+    return header_get(r->header, "Host");
 }
 
 Arena *req_scratch(Request *r)

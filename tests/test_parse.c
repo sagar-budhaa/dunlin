@@ -53,6 +53,24 @@ int main(void)
     ASSERT(request_parse(a, h2, strlen(h2), 8192, 8 << 20, &r, &consumed, &err) == REQ_ERROR);
     ASSERT(err == REQ_ERR_UNSUPPORTED_VERSION);
 
+    arena_reset(a);
+
+    const char *hdrs = "POST /sub HTTP/1.1\r\nHost:  example.com  \r\ncontent-TYPE: text/plain\r\nX-Multi: a\r\nX-Multi: b\r\nX-Empty:\r\n\r\n";
+    r = NULL;
+    ASSERT(request_parse(a, hdrs, strlen(hdrs), 8192, 8 << 20, &r, &consumed, &err) == REQ_OK);
+    ASSERT(strcmp(req_host(r), "example.com") == 0);
+    ASSERT(strcmp(header_get(req_header(r), "Content-Type"), "text/plain") == 0);
+    ASSERT(strcmp(header_get(req_header(r), "x-multi"), "a") == 0);
+    ASSERT(strcmp(header_get(req_header(r), "X-Empty"), "") == 0);
+
+    const char *nocolon = "GET / HTTP/1.1\r\nNoColonHere\r\n\r\n";
+    ASSERT(request_parse(a, nocolon, strlen(nocolon), 8192, 8 << 20, &r, &consumed, &err) == REQ_ERROR);
+    ASSERT(err == REQ_ERR_BAD_HEADER);
+
+    const char *fold = "GET / HTTP/1.1\r\nHost: a\r\n folded\r\n\r\n";
+    ASSERT(request_parse(a, fold, strlen(fold), 8192, 8 << 20, &r, &consumed, &err) == REQ_ERROR);
+    ASSERT(err == REQ_ERR_BAD_HEADER);
+
     arena_free(a);
 
     if (failures == 0)
