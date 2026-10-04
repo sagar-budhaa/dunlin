@@ -344,3 +344,26 @@ Handler mux_handler(ServeMux *m)
     h.ctx = m;
     return h;
 }
+
+/* The only global mutable state in the library. Setup-time use
+   only; registering while serving is a data race by contract. */
+static ServeMux *default_mux = NULL;
+
+ServeMux *dunlin_default_mux(void)
+{
+    if (!default_mux)
+        default_mux = mux_new();
+    return default_mux;
+}
+
+void dunlin_handle(const char *pattern, Handler h)
+{
+    ServeMux *m = dunlin_default_mux();
+    if (m)
+        mux_handle(m, pattern, h);
+}
+
+void dunlin_handle_func(const char *pattern, HandlerFunc fn, void *ctx)
+{
+    dunlin_handle(pattern, handler_func(fn, ctx));
+}

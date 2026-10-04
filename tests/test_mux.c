@@ -136,6 +136,11 @@ int main(void)
     ASSERT(run_case(m2, a, scratch, "GET", "/anything/at/all", &r) == 0);
     ASSERT(strcmp(got_body, "root") == 0);
 
+    /* package-level default mux serves too */
+    dunlin_handle_func("GET /d", mark, "default-d");
+    ASSERT(run_case(dunlin_default_mux(), a, scratch, "GET", "/d", &r) == 0);
+    ASSERT(strcmp(got_body, "default-d") == 0);
+
     arena_free(scratch);
     arena_free(a);
 
